@@ -1,4 +1,4 @@
-# signals
+# clj-time-series
 
 A Clojure library designed to read, manipulate, analyze and output time series data.
 
