@@ -11,7 +11,7 @@
 (defn series-names
 	"Returns names of all the series"
 	[ts]
-	(sort (filter (complement #{:dates}) (keys ts))))
+	(keys (dissoc ts :dates)))
 
 (defn to-date [datestring]
 	"Converts a string like infmt into a clj-time date-time object"
@@ -83,6 +83,21 @@
 		(to-cols (merge-with merge rows1 rows2))))
 	([ts1 ts2 & tss]
 		(apply join (join ts1 ts2) tss)))
+
+(defn colmap
+	"Takes a function to apply on value columns
+	Optionally takes a function for the date column
+	optionally takes a suffix to apply to asset names"
+	([ts colfun datefun suffix]
+		(let [assets (dissoc ts :dates)
+			  dates (ts :dates)]
+			(into {:dates (datefun dates)}
+				(for [[sname values] assets] 
+					[(-> sname (name) (str suffix) (keyword)) 
+					 (colfun values)]
+					 ))))
+	([ts colfun datefun] (colmap ts colfun datefun ""))
+	([ts colfun] (colmap ts colfun identity "")))
 
 (defn graph
 	"Shows a graph with all time serieses in ts"

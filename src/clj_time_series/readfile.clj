@@ -7,14 +7,14 @@
 
 (def ddmmmyyyy (fmt/formatter "dd-MMM-yy"))
 
-(defn readline 
+(defn- readline 
 	"parses time series data into clj-time date and long"
 	[line] 
 	(let [[rawdate & rawprices] (clojure.string/split line #",")]
 		(into [(fmt/parse ddmmmyyyy rawdate)]
 			(map #(Float/parseFloat %) rawprices))))
 
-(defn readheaders
+(defn- readheaders
 	"reads the first line as headers and changes to keywords"
 	[headerline]
 	(let [headersraw (clojure.string/split headerline #",")]
