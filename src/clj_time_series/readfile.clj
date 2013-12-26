@@ -7,28 +7,32 @@
 
 (def ddmmmyyyy (fmt/formatter "dd-MMM-yy"))
 
-(defn- readline 
-	"parses time series data into clj-time date and long"
+(defn readline 
+	"Parses time series data into [clj-time [values]]"
 	[line] 
 	(let [[rawdate & rawprices] (clojure.string/split line #",")]
-		(into [(fmt/parse ddmmmyyyy rawdate)]
-			(map #(Float/parseFloat %) rawprices))))
+		[(fmt/parse ddmmmyyyy rawdate)
+		 (map #(Float/parseFloat %) rawprices)]))
 
-(defn- readheaders
-	"reads the first line as headers and changes to keywords"
+(defn readheaders
+	"Reads the first line as headers and changes to keywords"
 	[headerline]
 	(let [headersraw (clojure.string/split headerline #",")]
-		(conj 
-			(map #(keyword (.toLowerCase %)) (rest headersraw))
-			:dates)))
+		(map #(keyword (.toLowerCase %)) (rest headersraw))))
 
 (defn readfile
-	"Produces a vector like [[:date :Index1 :index 2] [date11 level11 level21] [date12 level12 level22]]"
+	"Produces a map like follows:
+	{:dates [d1 d2 ...]
+	:names [n1 n2 ...]
+	:values [[val_n1d1 val_n1d2...] [val_n2d1 val_n2d2...]]}"
 	([filename]
 		(with-open [rdr (io/reader (str *filepath* filename))]
 			(let 
-				[headers (readheaders (first (line-seq rdr)))
-				data (doall (map readline (line-seq rdr)))
-				cols (apply map vector data)]
-				(zipmap headers cols)))))
+				[headers (vec (readheaders (first (line-seq rdr))))
+				rows (doall (map readline (line-seq rdr)))
+				dates (vec (map first rows))
+				values (vec (apply map vector (map second rows)))]
+				{:dates dates
+				 :names headers
+				 :values values}))))
 
