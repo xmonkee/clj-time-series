@@ -30,8 +30,8 @@
 			(let 
 				[headers (vec (readheaders (first (line-seq rdr))))
 				rows (doall (map readline (line-seq rdr)))
-				dates (map first rows)
-				values (apply map vector (map second rows))]
+				dates (vec (map first rows))
+				values (vec (apply map vector (map second rows)))]
 				{:dates dates
 				 :names headers
 				 :values values}))))

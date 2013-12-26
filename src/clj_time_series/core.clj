@@ -5,63 +5,56 @@
   	[incanter.core :as incanter]
   	[incanter.charts :as charts]))
 
-(def outfmt (fmt/formatter "yyyyMMdd"))
+(def outfmt (fmt/formatter "dd-MMM-yyyy"))
 (def infmt (fmt/formatter "yyyyMMdd"))
 
-(defn series-names
-	"Returns names of all the series"
+(defn make-ts
+	"Construct a TS"
+	[dates names & cols]
+	{:dates dates
+	:names names
+	:values cols})
+	
+(defn date-map
+	"Returns a map with dates as keys and rows of prices as values"
 	[ts]
-	(keys (dissoc ts :dates)))
+	(zipmap (ts :dates) 
+		(apply map vector (ts :values))))
+			
 
-(defn to-date [datestring]
+(defn date-map-to-cols
+	"Makes ts :values from date-map: rows"
+	[date-map]
+	(apply map vector (vals (sort-by key date-map))))
+
+
+(defn- to-date [datestring]
 	"Converts a string like infmt into a clj-time date-time object"
 	(fmt/parse infmt datestring))
 
-(def to-rows
-	"Returns a map with dates as keys and an {:assetname value} map as values"
-	(memoize
-		(fn
-			[ts]
-			(let [
-				dates (:dates ts)
-				s-names (series-names ts)
-				rows (apply map vector (map ts s-names))]
-				(zipmap dates (map #(zipmap s-names %) rows))))))
-
-(def to-cols
-	"Returns usual TS format from rows"
-	(memoize
-		(fn
-			[ts-rows]
-			(let [
-				dates-col (sort (keys ts-rows))
-				dates {:dates dates-col}
-				asset-names (keys (val (first ts-rows)))
-				asset-cols (map #(map % (map ts-rows dates-col)) asset-names)
-				assets (zipmap asset-names asset-cols)]
-				(into dates assets)))))
-
-(defn from
+(defn filter-dates
+ "Filters a time-series based on the pred applied to the dates"
+	[ts pred]
+	(let [
+		dates (filter pred (ts :dates))
+		cols (date-map-to-cols (select-keys (date-map ts) dates))]
+		(assoc ts :dates dates :values cols)))
+		
+		
+ (defn from
 	"Returns a subset of the ts from the given date"
 	[ts datestring]
-	(let [
-		date (to-date datestring)
-		at-or-after (fn [x] (or (= (key x) date) (ct/after? (key x) date)))
-		rows (to-rows ts)]
-		(to-cols
-			(into {}
-				(filter at-or-after rows)))))
+	(let [from-date (to-date datestring)
+		at-or-after (fn [x] (or (= x from-date) (ct/after? x from-date)))]
+		(filter-dates ts at-or-after)))
+		
 
 (defn to
 	"Returns a subset of the ts to the given date"
 	[ts datestring]
-	(let [
-		date (to-date datestring)
-		at-or-before (fn [x] (or (= (key x) date) (ct/before? (key x) date)))
-		rows (to-rows ts)]
-		(to-cols
-			(into {}
-				(filter at-or-before rows)))))
+	(let [from-date (to-date datestring)
+		at-or-before (fn [x] (or (= x from-date) (ct/before? x from-date)))]
+		(filter-dates ts at-or-before)))
 
 (defn between 
 	"Returns subset between two dates (inclusive)"
@@ -73,29 +66,25 @@
 (defn join
 	"Joins 2 or more sets of time-serieses.
 	Only takes dates present in both"
-	([ts1 ts2]
+	[& tss]
 	(let [
-		dates (clojure.set/intersection 
-			(set (:dates ts1))
-			(set (:dates ts2)))
-		rows1 (select-keys (to-rows ts1) dates)
-		rows2 (select-keys (to-rows ts2) dates)]
-		(to-cols (merge-with merge rows1 rows2))))
-	([ts1 ts2 & tss]
-		(apply join (join ts1 ts2) tss)))
+		dates (apply clojure.set/intersection (map (comp set :dates) tss))
+		cols (map #(filter-dates % dates) tss)]
+		(reduce (fn 
+					[{dates1 :dates names1 :names vals1 :values} 
+					 {names2 :names vals2 :values}]
+					{:dates dates1 :names (into names1 names2) :values (into vals1 vals2)})
+				cols)))
 
 (defn colmap
 	"Takes a function to apply on value columns
 	Optionally takes a function for the date column
 	optionally takes a suffix to apply to asset names"
 	([ts colfun datefun suffix]
-		(let [assets (dissoc ts :dates)
-			  dates (ts :dates)]
-			(into {:dates (datefun dates)}
-				(for [[sname values] assets] 
-					[(-> sname (name) (str suffix) (keyword)) 
-					 (colfun values)]
-					 ))))
+		(assoc ts 
+			:dates (datefun (ts :dates))
+			:values (map colfun (ts :values))
+			:names (map #(str % suffix) (ts :names))))
 	([ts colfun datefun] (colmap ts colfun datefun ""))
 	([ts colfun] (colmap ts colfun identity "")))
 
@@ -104,18 +93,19 @@
 	[ts]
 	(let 
 		[dates (map #(.getMillis %) (:dates ts))
-		[name1 & other-names] (series-names ts)		 
-		chart (charts/time-series-plot dates (name1 ts)
+		[name1 & other-names] (:names ts)
+		[col1 & other-cols] (:values ts)
+		chart (charts/time-series-plot dates col1
 			:x-label "" :y-label "" :legend true :series-label (str name1))
-		add-to-chart (fn [chart sname] 
-			(charts/add-lines chart dates (ts sname)
+		add-to-chart (fn [chart [col sname]] 
+			(charts/add-lines chart dates col
 				:series-label (str sname)))
-		chartall (reduce add-to-chart chart other-names)]
+		chartall (reduce add-to-chart chart (map vector other-cols other-names))]
 		(incanter/view chartall)))
 
 (defn show [ts]
 	"Shows the time serieses as a table"
 	(let 
 		[dates (map #(fmt/unparse outfmt %) (:dates ts))
-		table (apply map vector dates (map ts (series-names ts)))]
+		table (apply map vector dates (ts :values))]
 		(incanter/view table)))
