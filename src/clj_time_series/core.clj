@@ -23,7 +23,7 @@
 			
 
 (defn date-map-to-cols
-	"Makes ts :values from date-map: rows"
+	"Makes ts :values from date-map"
 	[date-map]
 	(apply map vector (vals (sort-by key date-map))))
 
@@ -63,6 +63,15 @@
 		(from startdate)
 		(to enddate)))
 
+(defn select-names
+	"Returns ts of only the names supplied"
+	[ts names]
+	(let [name-vals (select-keys (zipmap (ts :names) (ts :values)) names)]
+		(assoc ts
+			:names (vec(keys name-vals))
+			:values (vec(vals name-vals)))))
+	
+		
 (defn join
 	"Joins 2 or more sets of time-serieses.
 	Only takes dates present in both"
@@ -87,6 +96,8 @@
 			:names (map #(str % suffix) (ts :names))))
 	([ts colfun datefun] (colmap ts colfun datefun ""))
 	([ts colfun] (colmap ts colfun identity "")))
+	
+
 
 (defn graph
 	"Shows a graph with all time serieses in ts"
