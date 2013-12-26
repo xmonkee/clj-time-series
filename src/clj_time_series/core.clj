@@ -98,17 +98,17 @@
     [dates (map #(.getMillis %) (:dates ts))
     [name1 & other-names] (:names ts)
     [col1 & other-cols] (:values ts)
-    chart (charts/time-series-plot dates col1
+    chart (time-series-plot dates col1
       :x-label "" :y-label "" :legend true :series-label (str name1))
     add-to-chart (fn [chart [col sname]] 
-      (charts/add-lines chart dates col
+      (add-lines chart dates col
         :series-label (str sname)))
     chartall (reduce add-to-chart chart (map vector other-cols other-names))]
-    (incanter/view chartall)))
+    (view chartall)))
 
 (defn show [ts]
   "Shows the time serieses as a table"
   (let 
     [dates (map #(fmt/unparse outfmt %) (:dates ts))
     table (apply map vector dates (ts :values))]
-    (incanter/view table)))
+    (view table)))
