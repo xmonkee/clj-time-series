@@ -1,12 +1,12 @@
-(ns finsys.moving-averages
+(ns finsys.mov-avg
 	(:require [clj-time-series.core :as cts]
-			  [clj-time-series.readfile :as rf]))
+			  [clj-time-series.io :as io]))
 
 (defn- part-fun [fun n s]
   (fn [col]
   	(map fun (partition n s col))))
 
-(defn moving-averages [ts n]
+(defn moving-average [ts n]
 	(let [
 		avg (fn [col] (/ (apply + col) n))
 		colfun (part-fun avg n 1)
@@ -15,6 +15,6 @@
 	
 (defn tester [xxx]
 	(let [
-		ts (rf/readfile "TimeSeries2.csv")
-		mas (apply cts/join (map #(moving-averages ts %) [5 10 20 100]))]
-		(cts/graph moving-avgs)))
+		ts (io/readfile "TimeSeries2.csv")
+		mas (apply cts/join ts (map #(moving-average ts %) [20]))]
+		(cts/graph ts)))

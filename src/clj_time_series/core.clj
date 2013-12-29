@@ -10,12 +10,12 @@
 
 (defn make-ts
   "Construct a TS"
-  [dates names & cols]
+  [dates names cols]
   {:dates dates
   :names names
   :values cols})
   
-(defn- to-date [datestring]
+(defn to-date [datestring]
   "Converts a string like infmt into a clj-time date-time object"
   (fmt/parse infmt datestring))
 
@@ -58,24 +58,28 @@
   "Returns ts of only the names supplied"
   [ts names]
   (let [[fnames fvalues] 
-          (apply map vector
-            (filter 
-              (fn [[name col]] ((set names) name)) 
-              (map vector (ts :names) (ts :values))))]
-        (assoc ts :names fnames :values fvalues)))
+    (reduce  
+      (fn [[fnames fcols] [name col]] 
+        (if 
+          ((set names) name)
+          [(conj fnames name) (conj fcols col)]
+          [fnames fcols]))
+      [[] []]
+      (map vector (ts :names) (ts :values)))]
+    (assoc ts :names fnames :values fvalues)))
     
 (defn join
   "Joins 2 or more sets of time-serieses.
   Only takes dates present in both"
-  [& tss]
+  [ts1 ts2]
   (let [
-    dates (apply clojure.set/intersection (map (comp set :dates) tss))
-    cols (map #(filter-dates % dates) tss)]
-    (reduce (fn 
-          [{dates1 :dates names1 :names vals1 :values} 
-           {names2 :names vals2 :values}]
-          {:dates dates1 :names (into names1 names2) :values (into vals1 vals2)})
-        cols)))
+    dates (clojure.set/intersection (set (ts1 :dates)) (set (ts2 :dates)))
+    _ts1 (filter-dates ts1 dates)
+    _ts2 (filter-dates ts2 dates)]
+    (make-ts 
+      (_ts1 :dates) 
+      (concat (_ts1 :names) (_ts2 :names)) 
+      (concat (_ts1 :values) (_ts2 :values)))))
 
 (defn colmap
   "Takes a function to apply on value columns
