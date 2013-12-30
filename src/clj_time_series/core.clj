@@ -71,7 +71,7 @@
 (defn join
   "Joins 2 or more sets of time-serieses.
   Only takes dates present in both"
-  [ts1 ts2]
+  ([ts1 ts2]
   (let [
     dates (clojure.set/intersection (set (ts1 :dates)) (set (ts2 :dates)))
     _ts1 (filter-dates ts1 dates)
@@ -80,6 +80,8 @@
       (_ts1 :dates) 
       (concat (_ts1 :names) (_ts2 :names)) 
       (concat (_ts1 :values) (_ts2 :values)))))
+  ([ts1 ts2 & tss]
+    (apply join (join ts1 ts2) tss)))
 
 (defn colmap
   "Takes a function to apply on value columns
