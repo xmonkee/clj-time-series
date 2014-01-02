@@ -15,6 +15,14 @@
 (def dates keys)
 (defn names [ts] (-> ts first val keys))
 
+  
+(defn make-ts
+    "Returns a ts from given dates, names and cols"
+    [dates names cols]
+    (into (sorted-map)
+      (for [[date & values] (apply map list dates cols)]
+        [date (zipmap names values)])))
+
 (defn filter-dates
  "Filters a time-series based on the pred applied to the dates"
   [ts pred]
@@ -41,7 +49,7 @@
   (filter-dates ts (fn [date] 
     ((complement ct/after?) date (to-date datestring)))))    
 
- (defn join
+ (defn join-ts
    "Joins 2 or more sets of time-serieses.
    Only takes dates present in both"
    ([ts1 ts2]
@@ -49,34 +57,46 @@
       (for [[date namevals] ts1 :when (ts2 date)]
         [date (into namevals (ts2 date))])))
    ([ts1 ts2 & tss]
-     (apply join (join ts1 ts2) tss)))
-     
+     (apply join-ts (join-ts ts1 ts2) tss)))
+  
+  (defn join-ts-with
+    "Makes a new ts with the first columns of 2 tss
+    joined together with supplied function f"
+    [ts1 ts2 f namefun]
+     (into (sorted-map)
+      (for [[date namevals] ts1 :when (ts2 date)]
+        [date {(namefun (-> namevals first key) (-> date ts2 first key)) (f (-> namevals first val) (-> date ts2 first val))}]
+        ))) 
+  
+ (defn rowfun
+  "Takes a function f and vector of names and performs 
+  (f asset1 asset2 asset3 ...) (in the order of names supplied
+  for each row and returns a single column ts with the above result"
+  [ts f names]
+  (into (sorted-map)
+    (for [[date namevals] ts]
+      [date {(apply str names) (apply f (map namevals names))}]))) 
+   
  (defn get-cols
     "Returns the asset columns from a ts"
     [ts names dates]
     (for [name names]
       (for [date dates]
         (get-in ts [date name]))))
-  
-  (defn make-ts
-    "Returns a ts from given dates, names and cols"
-    [dates names cols]
-    (into (sorted-map)
-      (for [[date & values] (apply map list dates cols)]
-        [date (zipmap names values)])))
+
 
  (defn colmap
    "Takes a function to apply on value columns
    Optionally takes a function for the date column
-   optionally takes a suffix to apply to asset names"
-  ([ts colfun datefun] (colmap ts colfun datefun ""))
-  ([ts colfun] (colmap ts colfun identity ""))
-  ([ts colfun datefun suffix]
+   optionally takes a function to apply to asset names"
+  ([ts colfun datefun] (colmap ts colfun datefun identity))
+  ([ts colfun] (colmap ts colfun identity identity))
+  ([ts colfun datefun namefun]
     (let [names (names ts)
           dates (dates ts)
           cols (get-cols ts names dates)]
       (make-ts (datefun dates)
-               (map #(str % suffix) names)
+               (map namefun names)
                (map colfun cols))))) 
 	
 (defn graph

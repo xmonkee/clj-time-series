@@ -10,18 +10,38 @@
   (let [
     avg (fn [col] (/ (apply + col) n))
     colfun (part-fun avg n 1)
-    datefun (part-fun last n 1)]
-    (cts/colmap ts colfun datefun (str "/" n))))
+    datefun (part-fun last n 1)
+    namefun #(str % "/" n)]
+    (cts/colmap ts colfun datefun namefun)))
   
-(def avgs
+(defn diff
+  [ts1 ts2]
+  (cts/join-ts-with ts1 ts2 - #(str %1 "-" %2)))
+  
+(defn countpred [ts pred n suffix]
   (let [
-    ts (io/readfile "TimeSeries2.csv")]
-    (apply cts/join (map #(moving-average ts %) [5 10 20 50]))))
+    cnt (fn [col] (count (filter pred col)))
+    colfun (part-fun cnt n 1)
+    datefun (part-fun last n 1)
+    namefun #(str % suffix)]
+    (cts/colmap ts colfun datefun namefun)))
+    
+(defn pos [ts n]
+  (countpred ts pos? n "+"))
+  
+(defn neg [ts n]
+  (countpred ts neg? n "-"))
 
-(def diffs
-  (let [
-    rows  (apply map vector (avgs :values))
-    pairdiffs (for [row rows] (map - row (rest row))) 
-    cols (apply map vector pairdiffs)
-    names (map #(str %1 "-" %2) (avgs :names) (rest (avgs :names)))]
-    (cts/make-ts (avgs :dates) names cols)))    
+(defn signal [ts n1 n2 lookback]
+  (let [ts* (diff (moving-average ts n1) (moving-average ts n2))]
+    (cts/join-ts-with (pos ts* lookback) (neg ts* lookback) 
+      (fn [cpos cneg]
+        (cond
+          (>= cpos 5)   1
+          (>= cneg 5)  -1
+          :else         0))
+    (constantly "Signal"))))
+    
+ 
+
+ 
