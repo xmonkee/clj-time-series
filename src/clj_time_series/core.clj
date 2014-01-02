@@ -50,43 +50,56 @@
         [date (into namevals (ts2 date))])))
    ([ts1 ts2 & tss]
      (apply join (join ts1 ts2) tss)))
-
- ; (defn colmap
- ;   "Takes a function to apply on value columns
- ;   Optionally takes a function for the date column
- ;   optionally takes a suffix to apply to asset names"
- ;   ([ts colfun datefun suffix]
- ;    (into (sorted-map)
- ;      (for [name (names ts)
- ;            [date {value name}] ts]
- ;        [(datefun date)]
-;     (-> ts
-;       (update-in [:dates] datefun)
-;       (update-in [:values] (partial map colfun))
-;       (update-in [:names] (fn [names] (map #(str % suffix) names)))))
-;   ([ts colfun datefun] (colmap ts colfun datefun ""))
-;   ([ts colfun] (colmap ts colfun identity "")))
+     
+ (defn get-cols
+    "Returns the asset columns from a ts"
+    [ts names dates]
+    (for [name names]
+      (for [date dates]
+        (get-in ts [date name]))))
   
+  (defn make-ts
+    "Returns a ts from given dates, names and cols"
+    [dates names cols]
+    (into (sorted-map)
+      (for [[date & values] (apply map list dates cols)]
+        [date (zipmap names values)])))
 
-
+ (defn colmap
+   "Takes a function to apply on value columns
+   Optionally takes a function for the date column
+   optionally takes a suffix to apply to asset names"
+  ([ts colfun datefun] (colmap ts colfun datefun ""))
+  ([ts colfun] (colmap ts colfun identity ""))
+  ([ts colfun datefun suffix]
+    (let [names (names ts)
+          dates (dates ts)
+          cols (get-cols ts names dates)]
+      (make-ts (datefun dates)
+               (map #(str % suffix) names)
+               (map colfun cols))))) 
+	
 (defn graph
   "Shows a graph with all time serieses in ts"
   [ts]
   (let 
-    [dates (map #(.getMillis %) (:dates ts))
-    [name1 & other-names] (:names ts)
-    [col1 & other-cols] (:values ts)
-    chart (time-series-plot dates col1
-      :x-label "" :y-label "" :legend true :series-label (str name1))
+    [dates (dates ts)
+    datenums (map #(.getMillis %) dates)
+    names (names ts)
+    [col1 & other-cols] (get-cols ts names dates)
+    chart (time-series-plot datenums col1
+      :x-label "" :y-label "" :legend true :series-label (str (first names)))
     add-to-chart (fn [chart [col sname]] 
-      (add-lines chart dates col
+      (add-lines chart datenums col
         :series-label (str sname)))
-    chartall (reduce add-to-chart chart (map vector other-cols other-names))]
+    chartall (reduce add-to-chart chart (map vector other-cols (next names)))]
     (view chartall)))
 
 (defn show [ts]
   "Shows the time serieses as a table"
   (let 
-    [dates (map #(fmt/unparse outfmt %) (:dates ts))
-    table (apply map vector dates (ts :values))]
-    (view table)))
+    [datestrs (map #(fmt/unparse outfmt %) (dates ts))
+    names (names ts)
+    headers (cons "Dates" names)
+    table (apply map vector datestrs (get-cols ts names (dates ts)))]
+    (view (cons headers table))))
